@@ -154,10 +154,11 @@ extern "C" void pdm_init(void) {
                                               AM_HAL_PDM_INT_UNDFL  | 
                                               AM_HAL_PDM_INT_OVF));
 
-  NVIC_EnableIRQ(PDM_IRQn);
-
   // Enable PDM
   am_hal_pdm_enable(g_pdm_handle);
+
+  //Enable PDM interrupt after PDM was enabled
+  NVIC_EnableIRQ(PDM_IRQn);
 }
 
 // Start the DMA fetch of PDM samples.
@@ -228,10 +229,8 @@ extern "C" void am_pdm0_isr(void) {
           source_buffer[indi];
       g_audio_capture_buffer_start =
           (g_audio_capture_buffer_start + 1) % kAudioCaptureBufferSize;
-      slotCount++;   //bug here, need to move this outside of for loop
+      slotCount++;   
     }
-    
-//    slotCount++;  
 
     g_total_samples_captured += slotCount;
     g_latest_audio_timestamp =
