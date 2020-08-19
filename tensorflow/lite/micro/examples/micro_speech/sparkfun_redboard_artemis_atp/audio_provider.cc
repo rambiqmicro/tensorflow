@@ -343,4 +343,3 @@ TfLiteStatus GetAudioSamples(tflite::ErrorReporter* error_reporter,
 }
 
 int32_t LatestAudioTimestamp() { return g_latest_audio_timestamp; }
-
