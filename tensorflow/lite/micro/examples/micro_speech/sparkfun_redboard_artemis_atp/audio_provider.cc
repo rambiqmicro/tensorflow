@@ -1,4 +1,4 @@
-/* Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -43,7 +43,8 @@ volatile bool g_pdm_dma_error;
 tflite::ErrorReporter* g_pdm_dma_error_reporter = nullptr;
 
 // Holds a longer history of audio samples in a ring buffer.
-constexpr int kAudioCaptureBufferSize = 16000;
+// Important: We must make sure kAudioCaptureBufferSize is a mulitple of 1024 to avoid mis-alignment of audio samples
+constexpr int kAudioCaptureBufferSize = 15360;
 int16_t g_audio_capture_buffer[kAudioCaptureBufferSize] = {};
 int g_audio_capture_buffer_start = 0;
 int64_t g_total_samples_captured = 0;
@@ -109,20 +110,20 @@ void enable_burst_mode(tflite::ErrorReporter* error_reporter) {
 //*****************************************************************************
 am_hal_pdm_config_t g_sPdmConfig = {
     .eClkDivider = AM_HAL_PDM_MCLKDIV_1,
-    .eLeftGain = AM_HAL_PDM_GAIN_P165DB,
-    .eRightGain = AM_HAL_PDM_GAIN_P165DB,
+    .eLeftGain = AM_HAL_PDM_GAIN_0DB,            //No high gains to avoid PDM saturation 
+    .eRightGain = AM_HAL_PDM_GAIN_0DB,           //No high gains to avoid PDM saturation 
     .ui32DecimationRate =
-        48,  // OSR = 1500/16 = 96 = 2*SINCRATE --> SINC_RATE = 48
+        47,  // OSR = 1500/16 = 96 = 2*SINCRATE --> SINC_RATE = 47
     .bHighPassEnable = 1,
-    .ui32HighPassCutoff = 0x2,
+    .ui32HighPassCutoff = 0x2,                   //0x2 is for better detection 
     .ePDMClkSpeed = AM_HAL_PDM_CLK_1_5MHZ,
     .bInvertI2SBCLK = 0,
-    .ePDMClkSource = AM_HAL_PDM_INTERNAL_CLK,
+    .ePDMClkSource = AM_HAL_PDM_INTERNAL_CLK,   //Use internal clock
     .bPDMSampleDelay = 0,
-    .bDataPacking = 0,
-    .ePCMChannels = AM_BSP_PDM_CHANNEL,
+    .bDataPacking = 0,                          //No packing due to the fact that we use only use channel
+    .ePCMChannels = AM_HAL_PDM_CHANNEL_LEFT,    //Left channel only onboard 
     .ui32GainChangeDelay = 1,
-    .bI2SEnable = 0,
+    .bI2SEnable = 0,                            //I2S interface not in use
     .bSoftMute = 0,
     .bLRSwap = 0,
 };
@@ -153,10 +154,13 @@ extern "C" void pdm_init(void) {
                                               AM_HAL_PDM_INT_UNDFL  | 
                                               AM_HAL_PDM_INT_OVF));
 
-  NVIC_EnableIRQ(PDM_IRQn);
 
   // Enable PDM
   am_hal_pdm_enable(g_pdm_handle);
+
+  // Enable PDM interrupt after PDM was enabled to avoid DMA overflow  
+  NVIC_EnableIRQ(PDM_IRQn);
+
 }
 
 // Start the DMA fetch of PDM samples.
