@@ -1,4 +1,4 @@
-/* Copyright 2019 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ constexpr int kPdmSamplesPerSlot = 256;
 constexpr int kPdmSampleBufferSize = (kPdmNumSlots * kPdmSamplesPerSlot);
 uint32_t g_ui32PDMSampleBuffer0[kPdmSampleBufferSize];
 uint32_t g_ui32PDMSampleBuffer1[kPdmSampleBufferSize];
-uint32_t g_PowerOff = 0;
+// uint32_t g_PowerOff = 0;        //to mute the compiler error
 
 // Controls the double buffering between the two DMA buffers.
 int g_dma_destination_index = 0;
@@ -51,7 +51,8 @@ volatile bool g_pdm_dma_error;
 tflite::ErrorReporter* g_pdm_dma_error_reporter = nullptr;
 
 // Holds a longer history of audio samples in a ring buffer.
-constexpr int kAudioCaptureBufferSize = 16000;
+// Important: We must make sure kAudioCaptureBufferSize is a mulitple of 1024 to avoid mis-alignment of audio samples
+constexpr int kAudioCaptureBufferSize = 15360;
 int16_t g_audio_capture_buffer[kAudioCaptureBufferSize] = {};
 int g_audio_capture_buffer_start = 0;
 int64_t g_total_samples_captured = 0;
@@ -173,20 +174,20 @@ void enable_burst_mode(tflite::ErrorReporter* error_reporter) {
 //*****************************************************************************
 am_hal_pdm_config_t g_sPdmConfig = {
     .eClkDivider = AM_HAL_PDM_MCLKDIV_1,
-    .eLeftGain = AM_HAL_PDM_GAIN_P165DB,
-    .eRightGain = AM_HAL_PDM_GAIN_P165DB,
+    .eLeftGain = AM_HAL_PDM_GAIN_0DB,          //No high gains to avoid PDM saturation 
+    .eRightGain = AM_HAL_PDM_GAIN_0DB,         //No high gains to avoid PDM saturation 
     .ui32DecimationRate =
-        48,  // OSR = 1500/16 = 96 = 2*SINCRATE --> SINC_RATE = 48
+        47,  // OSR = 1500/16 = 96 = 2*SINCRATE --> SINC_RATE = 47
     .bHighPassEnable = 1,
-    .ui32HighPassCutoff = 0x2,
-    .ePDMClkSpeed = AM_HAL_PDM_CLK_1_5MHZ,
+    .ui32HighPassCutoff = 0x2,                  //0x2 is for better detection 
+    .ePDMClkSpeed = AM_HAL_PDM_CLK_1_5MHZ,      //1.5MHz
     .bInvertI2SBCLK = 0,
-    .ePDMClkSource = AM_HAL_PDM_INTERNAL_CLK,
+    .ePDMClkSource = AM_HAL_PDM_INTERNAL_CLK,   //Use internal clock
     .bPDMSampleDelay = 0,
-    .bDataPacking = 0,
-    .ePCMChannels = AM_HAL_PDM_CHANNEL_LEFT,
+    .bDataPacking = 0,                          //No packing due to the fact that we use only use channel
+    .ePCMChannels = AM_HAL_PDM_CHANNEL_LEFT,    //Use only left channel to be consistent with Artemis ATP board
     .ui32GainChangeDelay = 1,
-    .bI2SEnable = 0,
+    .bI2SEnable = 0,                            //I2S interface not in use
     .bSoftMute = 0,
     .bLRSwap = 0,
 };
@@ -216,6 +217,10 @@ extern "C" void pdm_init(void) {
   sPinCfg.uFuncSel = AM_HAL_PIN_11_PDMDATA;
   am_hal_gpio_pinconfig(11, sPinCfg);
 
+  // power
+  am_hal_gpio_state_write(14, AM_HAL_GPIO_OUTPUT_CLEAR);
+  am_hal_gpio_pinconfig(14, g_AM_HAL_GPIO_OUTPUT);
+
   //
   // Configure and enable PDM interrupts (set up to trigger on DMA
   // completion).
@@ -223,11 +228,10 @@ extern "C" void pdm_init(void) {
   am_hal_pdm_interrupt_enable(g_pdm_handle,
                               (AM_HAL_PDM_INT_DERR | AM_HAL_PDM_INT_DCMP |
                                AM_HAL_PDM_INT_UNDFL | AM_HAL_PDM_INT_OVF));
-
-  NVIC_EnableIRQ(PDM_IRQn);
-
   // Enable PDM
   am_hal_pdm_enable(g_pdm_handle);
+
+  NVIC_EnableIRQ(PDM_IRQn);        //we need enable the PDM interrupt after PDM is enabled to avoid false DMA triggers
 }
 
 // Start the DMA fetch of PDM samples.
@@ -473,6 +477,7 @@ TfLiteStatus InitAudioRecording(tflite::ErrorReporter* error_reporter) {
   pdm_init();
   am_hal_interrupt_master_enable();
   am_hal_pdm_fifo_flush(g_pdm_handle);
+
   // Trigger the PDM DMA for the first time manually.
   pdm_start_dma(error_reporter);
 
