@@ -2,6 +2,12 @@
 ifeq ($(TARGET),$(filter $(TARGET),\
   apollo3evb\
   sparkfun_edge\
+  sparkfun_edge2\
+  sparkfun_redboard_artemis_atp\
+  sparkfun_redboard_artemis_nano\
+  sparkfun_redboard_artemis\
+  sparkfun_artemis_thing_plus\
+  sparkfun_artemis_dk\
   ))
   export PATH := $(MAKEFILE_DIR)/downloads/gcc_embedded/bin/:$(PATH)
   TARGET_ARCH := cortex-m4
@@ -22,6 +28,21 @@ ifeq ($(TARGET),$(filter $(TARGET),\
     $(eval $(call add_third_party_download,$(SF_BSPS_URL),$(SF_BSPS_MD5),$(AM_SDK_DEST)/$(SF_BSPS_DEST),))
     # Make sure that we download the full Ambiq SDK before the SparkFun BSPs.
 $(MAKEFILE_DIR)/downloads/$(AM_SDK_DEST)/$(SF_BSPS_DEST): $(MAKEFILE_DIR)/downloads/$(AM_SDK_DEST)
+  endif
+
+  ifeq ($(TARGET),$(filter $(TARGET),\
+    sparkfun_edge2\
+    sparkfun_redboard_artemis_atp\
+    sparkfun_redboard_artemis_nano\
+    sparkfun_redboard_artemis\
+    sparkfun_artemis_thing_plus\
+    sparkfun_artemis_dk\
+    ))
+
+    ALL_TAGS+= sfe
+    ALL_TAGS+= apollo3-pdm
+    ALL_TAGS+= sfe-unary-led
+
   endif
 
   PLATFORM_FLAGS = \
