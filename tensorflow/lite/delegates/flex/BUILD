@@ -1,4 +1,5 @@
 load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_opts_nortti_if_lite_protos")
+load("//tensorflow/lite:build_def.bzl", "tflite_copts")
 load("//tensorflow/lite/delegates/flex:build_def.bzl", "tflite_flex_cc_library")
 
 #
@@ -58,12 +59,14 @@ tf_cc_test(
 
 # Define the standard flex delegate library, that pulls in the standard set
 # of TensorFlow ops and kernels, using tflite_flex_cc_library with no
-# portable_tensorflow_lib parameter. Custom flex delegate can be defined with
-# tflite_flex_cc_library if the parameter portable_tensorflow_lib
-# is provided. Ex:
+# models parameter. Custom flex delegate can be defined with
+# tflite_flex_cc_library if the parameter models is provided. Tensorflow
+# user-provided ops could also be supported by passing to additional_deps.
+# Ex:
 # tflite_flex_cc_library(
-#   name = "sample",
-#   portable_tensorflow_lib = custom_portable_tensorflow_lib,
+#   name = "sample_delegate",
+#   models = ["model1.tflite", "model2.tflite"],
+#   additional_deps = ["your_custom_ops_lib"],
 # )
 tflite_flex_cc_library(
     name = "delegate",
@@ -82,6 +85,7 @@ cc_library(
     hdrs = [
         "delegate.h",
     ],
+    copts = tflite_copts(),
     visibility = ["//visibility:public"],
     deps = [
         ":buffer_map",
@@ -126,6 +130,7 @@ tf_cc_test(
     deps = [
         ":delegate",
         ":test_util",
+        "//tensorflow/lite:shared_library",
         "//tensorflow/lite/kernels:test_util",
         "@com_google_googletest//:gtest",
     ],
@@ -175,8 +180,8 @@ tf_cc_test(
     srcs = ["kernel_test.cc"],
     tags = ["no_gpu"],  # GPU + flex is not officially supported.
     deps = [
+        ":delegate",
         ":delegate_data",
-        ":delegate_only_runtime",
         ":test_util",
         "@com_google_googletest//:gtest",
     ],
@@ -273,4 +278,16 @@ tf_cc_test(
             "//tensorflow/core:framework",
         ],
     }),
+)
+
+# Alias to support selective build of image ops.
+# TODO(b/163285312): Remove after tensorflow/core refactoring completed.
+cc_library(
+    name = "portable_images_lib",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//tensorflow/core:portable_gif_internal",
+        "//tensorflow/core:portable_jpeg_internal",
+        "//tensorflow/core:portable_png_internal",
+    ],
 )

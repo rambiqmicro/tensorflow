@@ -35,6 +35,19 @@ struct TensorArray : ::mlir::SideEffects::Resource::Base<TensorArray> {
   StringRef getName() final { return "TensorArray"; }
 };
 
+struct Summary : ::mlir::SideEffects::Resource::Base<Summary> {
+  StringRef getName() final { return "Summary"; }
+};
+
+struct LookupTable : ::mlir::SideEffects::Resource::Base<LookupTable> {
+  StringRef getName() final { return "LookupTable"; }
+};
+
+struct DatasetSeedGenerator
+    : ::mlir::SideEffects::Resource::Base<DatasetSeedGenerator> {
+  StringRef getName() final { return "DatasetSeedGenerator"; }
+};
+
 }  // namespace ResourceEffects
 }  // namespace TF
 }  // namespace mlir
